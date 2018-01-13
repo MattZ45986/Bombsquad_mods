@@ -146,6 +146,17 @@ class WizardWar(bs.TeamGameActivity):
     def __init__(self,settings):
         bs.TeamGameActivity.__init__(self,settings)
         if self.settings['Epic Mode']: self._isSlowMotion = True
+        self.info = bs.NodeActor(bs.newNode('text',
+                                                   attrs={'vAttach': 'bottom',
+                                                          'hAlign': 'center',
+                                                          'vrDepth': 0,
+                                                          'color': (0,.2,0),
+                                                          'shadow': 1.0,
+                                                          'flatness': 1.0,
+                                                          'position': (0,0),
+                                                          'scale': 0.8,
+                                                          'text': "Created by MattZ45986 on Github",
+                                                          }))
 
     def onTransitionIn(self):
         bs.TeamGameActivity.onTransitionIn(self,music='ToTheDeath')
