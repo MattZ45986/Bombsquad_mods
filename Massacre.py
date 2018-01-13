@@ -11,16 +11,16 @@ def bsGetAPIVersion():
     return 4
 
 def bsGetGames():
-    return [NewGame]
+    return [Massacre]
 
 def bsGetLevels():
     return [bs.Level('Massacre 123', #<---- This name right here has to be unique to be recognized as a new game.
                      displayName='${GAME}',
-                     gameType=NewGame,
+                     gameType=Massacre,
                      settings={},
                      previewTexName='courtyardPreview')]
 
-class NewGame(bs.TeamGameActivity):
+class Massacre(bs.TeamGameActivity):
 
 # Returns the name of the game
     @classmethod
@@ -50,6 +50,20 @@ class NewGame(bs.TeamGameActivity):
 # Play some nice dramatic music
     def onTransitionIn(self):
         bs.TeamGameActivity.onTransitionIn(self,music='ToTheDeath')
+        
+    def __init__(self, settings):
+        bs.TeamGameActivity.__init__(self,settings)
+        self.info = bs.NodeActor(bs.newNode('text',
+                                                   attrs={'vAttach': 'bottom',
+                                                          'hAlign': 'center',
+                                                          'vrDepth': 0,
+                                                          'color': (0,.2,0),
+                                                          'shadow': 1.0,
+                                                          'flatness': 1.0,
+                                                          'position': (0,0),
+                                                          'scale': 0.8,
+                                                          'text': "Created by MattZ45986 on Github",
+                                                          }))
 
 
     def onBegin(self):
