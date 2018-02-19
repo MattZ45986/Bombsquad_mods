@@ -1,6 +1,14 @@
 #Basketball
 import bs
 import bsUtils
+import math
+import random
+
+#JumpBall
+# 3pt line
+# foul line @ 0
+#foul shot mode
+# foul shot number bs.playSound(bs.getSound('laserReverse'))
 
 
 def bsGetAPIVersion():
@@ -230,3 +238,9 @@ class Basketball(bs.TeamGameActivity):
             for player in team.players:
                 if player.isAlive(): i = 1
             if i == 0: self.endGame()
+
+    def endGame(self):
+        results = bs.TeamGameResults()
+        for team in self.teams:
+            results.setTeamScore(team, team.gameData['score'])
+        self.end(results=results)
