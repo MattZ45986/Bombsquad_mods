@@ -4,13 +4,6 @@ import bsUtils
 import math
 import random
 
-#JumpBall
-# 3pt line
-# foul line @ 0
-#foul shot mode
-# foul shot number bs.playSound(bs.getSound('laserReverse'))
-
-
 def bsGetAPIVersion():
     return 4
 
@@ -32,29 +25,32 @@ class Referee(bs.SpazBot):
     chargeSpeedMax = 0.0
 
 class Hoop(bs.Actor):
-    def __init__(self,position):
+    def __init__(self,position=(0,5,-8),color=(1,1,1)):
         self._r1 = 0.7
         self._rFudge = 0.15
         bs.Actor.__init__(self)
         self._position = bs.Vector(*position)
+        self.color = color
         p1 = position
         p2 = (position[0]+1,position[1],position[2])
         p3 = (position[0]-1,position[1],position[2])
         showInSpace = False
         self._hit = False
         n1 = bs.newNode('locator',attrs={'shape':'circle','position':p1,
-                                         'color':(1,0,0),'opacity':0.5,
+                                         'color':self.color,'opacity':0.5,
                                          'drawBeauty':showInSpace,'additive':True})
         n2 = bs.newNode('locator',attrs={'shape':'circle','position':p2,
-                                         'color':(1,0,0),'opacity':0.5,
+                                         'color':self.color,'opacity':0.5,
                                          'drawBeauty':showInSpace,'additive':True})
         n3 = bs.newNode('locator',attrs={'shape':'circle','position':p3,
-                                         'color':(1,0,0),'opacity':0.5,
+                                         'color':self.color,'opacity':0.5,
                                          'drawBeauty':showInSpace,'additive':True})
+        n4 = bs.newNode('light',attrs={'color':self.color,'position':p1,'intensity':.5})
+
         bs.animateArray(n1,'size',1,{0:[0.0],200:[self._r1*2.0]})
         bs.animateArray(n2,'size',1,{0:[0.0],200:[self._r1*2.0]})
         bs.animateArray(n3,'size',1,{0:[0.0],200:[self._r1*2.0]})
-        self._nodes = [n1,n2,n3]
+        self._nodes = [n1,n2,n3,n4]
 
 class BasketBallFactory(bs.BombFactory):
     def __init__(self):
@@ -66,11 +62,17 @@ class BasketBallFactory(bs.BombFactory):
                                'or',('theyHaveMaterial',bs.getSharedObject('objectMaterial')))),
             actions=(('message','ourNode','atConnect',ImpactMessage())))
         bs.BombFactory.__init__(self)
-    
+
+
+class Baller(bs.PlayerSpaz):
+    def onBombPress(self):
+        pass
+
     
 class BasketBomb(bs.Bomb):
     def __init__(self,position=(0,1,0),velocity=(0,0,0),bombType='normal',blastRadius=2.0,sourcePlayer=None,owner=None):
         bs.Actor.__init__(self)
+        self.up = False
         factory = BasketBallFactory()
         self.bombType = 'basketball'
         self._exploded = False
@@ -91,8 +93,8 @@ class BasketBomb(bs.Bomb):
                                           'body':'sphere',
                                           'model':factory.bombModel,
                                           'shadowSize':0.3,
-                                          'colorTexture':bs.getTexture('aliColor'),
-                                          'reflection':'powerup',
+                                          'colorTexture':bs.getTexture('bonesColorMask'),
+                                          'reflection':'soft',
                                           'reflectionScale':[1.5],
                                           'materials':materials})
         bsUtils.animate(self.node,"modelScale",{0:0, 200:1.3, 260:1})
@@ -100,7 +102,7 @@ class BasketBomb(bs.Bomb):
 
     def handleMessage(self, m):
         if isinstance(m, bs.OutOfBoundsMessage):
-            self.getActivity().respawnBall()
+            self.getActivity().respawnBall((not self.getActivity().possession))
             bs.Bomb.handleMessage(self, m)
         elif isinstance(m, bs.PickedUpMessage):
             self.heldLast = m.node.getDelegate().getPlayer()
@@ -108,7 +110,12 @@ class BasketBomb(bs.Bomb):
             if self.heldLast in self.getActivity().teams[0].players: self.getActivity().possession = True
             else: self.getActivity().possession = False
             bs.Bomb.handleMessage(self, m)
+            if self.up == True:
+                activity = self.getActivity()
+                bs.gameTimer(3000,bs.WeakCall(activity.jumpBall))
+            self.up = True
         elif isinstance(m, ImpactMessage): self.getActivity().handleShot(self)
+        elif isinstance(m, bs.DroppedMessage): self.up = False
         else: bs.Bomb.handleMessage(self, m)
 
 
@@ -164,8 +171,15 @@ class Basketball(bs.TeamGameActivity):
                                                           }))
         self.possession = True
         self.heldLast = None
+        self.fouled = False
+        self.firstFoul = False
+        self.jb = True
+        self.blueBench = bs.newNode('light', attrs={
+            'color':(0,0,1),'intensity':.7,'position':(-6.5,0,-2)})
+        self.redBench = bs.newNode('light', attrs={
+            'color':(1,0,0),'intensity':.7,'position':(6.5,0,-2)})
         self._bots = bs.BotSet()
-        self.hoop = Hoop((0,5,-8))
+        self.hoop = Hoop((0,5,-8), (1,1,1))
         self._scoredis = bs.ScoreBoard()
         self.referee = Referee
 
@@ -178,7 +192,7 @@ class Basketball(bs.TeamGameActivity):
         s = self.settings
         for player in self.players:
             player.actor.connectControlsToPlayer(enableBomb=False, enableRun = s["Enable Running"], enableJump = s["Enable Jumping"])
-        self.respawnBall()
+        self.respawnBall(None)
         self.teams[0].gameData['score'] = 0
         self.teams[1].gameData['score'] = 0
         self._scoredis.setTeamValue(self.teams[0],self.teams[1].gameData['score'])
@@ -186,8 +200,30 @@ class Basketball(bs.TeamGameActivity):
         self.updateScore()
         self.checkEnd()
 
-    def respawnBall(self):
-        self.basketball = BasketBomb(position=(0,5,0)).autoRetain()
+    def spawnPlayerSpaz(self,player,position=(0,5,-3),angle=None):
+        name = player.getName()
+        color = player.color
+        highlight = player.highlight
+        spaz = Baller(color=color,
+                             highlight=highlight,
+                             character=player.character,
+                             player=player)
+        player.setActor(spaz)
+        if player in self.teams[0].players: position = (-6.5,3.2,(random.random()*5)-4.5)
+        else: position = (6.5,3.2,(random.random()*5)-4.5)
+        if self.fouled == True: position = (0,3.2,-3)
+        s = self.settings
+        player.actor.connectControlsToPlayer(enableBomb=False, enableRun = s["Enable Running"], enableJump = s["Enable Jumping"])
+        spaz.handleMessage(bs.StandMessage(position,90))
+
+    def respawnBall(self, owner):
+        if owner == True:
+            self.basketball = BasketBomb(position=(-6,5,-3)).autoRetain()
+        elif owner == False:
+            self.basketball = BasketBomb(position=(6,5,-3)).autoRetain()
+        else:
+            self.basketball = BasketBomb(position=(0,5,-2.5)).autoRetain()
+        
 
     def handleMessage(self, m):
         if isinstance(m, bs.SpazBotDeathMessage):
@@ -205,27 +241,118 @@ class Basketball(bs.TeamGameActivity):
                 bs.screenMessage("Don't take it out on the ref!", color=(0,0,1))
         elif isinstance(m, bs.PlayerSpazDeathMessage):
             if m.killed:
-                if m.spaz.getPlayer() in self.teams[0].players: team = self.teams[0]
+                if m.spaz.getPlayer() in self.teams[0].players:
+                    team = self.teams[0]
                 elif m.spaz.getPlayer() in self.teams[1].players: team = self.teams[1]
                 if m.killerPlayer not in team.players:
-                    bs.screenMessage("FOUL", color=(1,0,0))
+                    m.killerPlayer.actor.setScoreText("FOUL")
+                    bs.playSound(bs.getSound('bearDeath'))
+                    self.fouled = True
                     self.giveFoulShots(m.spaz)
             else: self.respawnPlayer(m.spaz.getPlayer())
-
+            s = self.settings
         else: bs.TeamGameActivity.handleMessage(self, m)
 
     def giveFoulShots(self, player):
-        pass
+        for p in self.players:
+            p.actor.disconnectControlsFromPlayer()
+            if p in self.teams[0].players and p != player: p.actor.node.handleMessage('stand',-6.5,3.2,(random.random()*5)-4.5, 0)
+            if p in self.teams[1].players and p != player: p.actor.node.handleMessage('stand',6.5,3.2,(random.random()*5)-4.5, 0)
+        self.spawnPlayerSpaz(player.getPlayer())
+        name = player.getPlayer().getName()
+        for p in self.players:
+            if p.getName() == name:
+                player = p.actor
+        self.firstFoul = True
+        self.basketball.node.delete()
+        self.respawnBall(None)
+        bs.playSound(bs.getSound('announceTwo'))
+        player.node.handleMessage('stand',0,3.2,-3, 0)
+        player.onPickUpPress()
+        player.onPickUpRelease()
+        player.setScoreText("5 seconds to shoot")
+        bs.gameTimer(6000, bs.Call(self.continueFoulShots,player))
+
+    def continueFoulShots(self, player):
+        if self.basketball.node.exists(): self.basketball.node.delete()
+        self.firstFoul = False
+        player.node.handleMessage('stand',0,3.2,-3, 0)
+        self.respawnBall(None)
+        bs.playSound(bs.getSound('announceOne'))
+        player.onPickUpPress()
+        player.onPickUpRelease()
+        bs.playSound(bs.getSound('bear1'))
+        player.setScoreText("5 seconds to shoot")
+        bs.gameTimer(6000, bs.Call(self.continuePlay))
+
+    def continuePlay(self):
+        self.fouled = False
+        if self.basketball.node.exists(): self.basketball.node.delete()
+        self.respawnBall(not self.possession)
+        s = self.settings
+        for player in self.players:
+            player.actor.connectControlsToPlayer(enableBomb=False, enableRun = s["Enable Running"], enableJump = s["Enable Jumping"])
+        if player in self.teams[0].players:
+                player.actor.node.handleMessage('stand',-6.5,3.2,(random.random()*5)-4.5, 0)
+        elif player in self.teams[1].players:
+                player.actor.node.handleMessage('stand',6.5,3.2,(random.random()*5)-4.5, 0)
+        
+
+
+    def jumpBall(self):
+        ball = self.basketball
+        if ball.up == True:
+            self.basketball.heldLast.actor.setScoreText("Jump Ball")
+            for player in self.teams[0].players:
+                player.actor.node.handleMessage('stand',-6.5,3.2,(random.random()*5)-4.5, 0)
+            for player in self.teams[1].players:
+                player.actor.node.handleMessage('stand',6.5,3.2,(random.random()*5)-4.5, 0)
+            ball.node.delete()
+            self.respawnBall(not self.jb)
+            self.jb = not self.jb
     def handleShot(self, ball):
         if ball.node.position[0] > -1.5 and ball.node.position[0] < 1.5:
             if ball.node.position[1] > 4 and ball.node.position[1] < 5:
                 if ball.node.position[2] > -9 and ball.node.position[2] < -8:
-                    bs.screenMessage("Score!")
-                    if self.possession: self.teams[0].gameData['score'] += 2
-                    else: self.teams[1].gameData['score'] += 2
-                    self.updateScore()
-                    ball.node.delete()
-                    self.respawnBall()
+                    bs.playSound(bs.getSound('bear' +str(random.randint(1,4))))
+                    if not self.fouled:
+                        if self.possession:
+                            self.teams[0].gameData['score'] += 2
+                            ball.heldLast.actor.setScoreText("2 Points")
+                            for node in self.hoop._nodes:
+                                node.delete()
+                            self.hoop = None
+                            self.hoop = Hoop((0,5,-8),(0,0,1))
+                            for player in self.teams[0].players:
+                                player.actor.node.handleMessage('stand',-6.5,3.2,(random.random()*5)-4.5, 0)
+                        else:
+                            self.teams[1].gameData['score'] += 2
+                            ball.heldLast.actor.setScoreText("2 Points")
+                            for node in self.hoop._nodes:
+                                node.delete()
+                            self.hoop = None
+                            self.hoop = Hoop((0,5,-8),(1,0,0))
+                            for player in self.teams[1].players:
+                                player.actor.node.handleMessage('stand',6.5,3.2,(random.random()*5)-4.5, 0)
+                        self.updateScore()
+                        ball.node.delete()
+                        self.respawnBall(not self.possession)
+                    else:
+                        if self.possession:
+                            for node in self.hoop._nodes:
+                                node.delete()
+                            self.hoop = None
+                            self.hoop = Hoop((0,5,-8),(0,0,1))
+                            self.teams[0].gameData['score'] += 1
+                        else:
+                            for node in self.hoop._nodes:
+                                node.delete()
+                            self.hoop = None
+                            self.hoop = Hoop((0,5,-8),(1,0,0))
+                            self.teams[1].gameData['score'] += 1
+                        ball.heldLast.actor.setScoreText("1 Point")
+                        self.updateScore()
+                        ball.node.delete()
     def updateScore(self):
         for team in self.teams:
             self._scoredis.setTeamValue(team,team.gameData['score'])
