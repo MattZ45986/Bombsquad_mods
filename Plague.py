@@ -22,7 +22,7 @@ class PlagueBomb(bs.Bomb):
         factory = self.getFactory()
         self.bombType = 'plague'
         self._exploded = False
-        self.blastRadius = 4.0
+        self.blastRadius = self.getActivity().settings["Blast Size"]
         self._explodeCallbacks = []
         self.sourcePlayer = sourcePlayer
         self.hitType = 'explosion'
@@ -77,8 +77,7 @@ class PlagueSpaz(bs.PlayerSpaz):
     
     def handleMessage(self, m):
         if isinstance(m, bs.HitMessage):
-            if m.hitSubType == 'plague':
-                self.curse()
+            if m.hitSubType == 'plague': self.curse()
             else: bs.Spaz.handleMessage(self,m)    
         else: bs.Spaz.handleMessage(self,m)
 
@@ -119,7 +118,15 @@ class Plague(bs.TeamGameActivity):
                 ("Enable Running", {'default': False}),
                 ("Enable Jumping", {'default': False}),
                 ("Enable Picking Up", {'default': False}),
-                ]
+                ("Blast Size", {
+                    'choices': [
+                        ('1', 1),
+                        ('2', 2),
+                        ('3', 3),
+                        ('5', 5),
+                        ('10', 10)
+                    ],
+                    'default': 2})]
     @classmethod
     def getSupportedMaps(cls, sessionType):
         return bs.getMapsSupportingPlayType('melee')
@@ -131,17 +138,6 @@ class Plague(bs.TeamGameActivity):
     def __init__(self,settings):
         bs.TeamGameActivity.__init__(self,settings)
         if self.settings['Epic Mode']: self._isSlowMotion = True
-        self.info = bs.NodeActor(bs.newNode('text',
-                                                   attrs={'vAttach': 'bottom',
-                                                          'hAlign': 'center',
-                                                          'vrDepth': 0,
-                                                          'color': (0,.2,0),
-                                                          'shadow': 1.0,
-                                                          'flatness': 1.0,
-                                                          'position': (0,0),
-                                                          'scale': 0.8,
-                                                          'text': "Created by MattZ45986 on Github",
-                                                          }))
         
     def onTransitionIn(self):
         bs.TeamGameActivity.onTransitionIn(self,music='ToTheDeath')
@@ -197,3 +193,4 @@ class Plague(bs.TeamGameActivity):
         for team in self.teams:
             results.setTeamScore(team, team.gameData['score'])
         self.end(results=results)
+
