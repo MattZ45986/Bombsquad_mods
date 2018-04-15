@@ -95,6 +95,11 @@ class SimonSays(bs.TeamGameActivity):
 
     def onTransitionIn(self):
         bs.TeamGameActivity.onTransitionIn(self,music='FlagCatcher')
+        
+    def onPlayerJoin(self, player):
+        if self.hasBegun():
+            bs.screenMessage(bs.Lstr(resource='playerDelayedJoinText', subs=[('${PLAYER}', player.getName(full=True))]),
+                             color=(0, 1, 0))
 
     def onBegin(self):
         s = self.settings
