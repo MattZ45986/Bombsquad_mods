@@ -165,6 +165,11 @@ class SimonSays(bs.TeamGameActivity):
         if isinstance(m, bs.PlayerSpazDeathMessage): self.checkEnd()
         else: bs.TeamGameActivity.handleMessage(self, m)
 
+    def onPlayerJoin(self, player):
+        if self.hasBegun():
+            bs.screenMessage(bs.Lstr(resource='playerDelayedJoinText',subs=[('${PLAYER}',player.getName(full=True))]),color=(0,1,0))
+            return
+
     def checkEnd(self):
         i = 0
         for player in self.players:
