@@ -1,9 +1,8 @@
 import bs
 import random
 
-#Here is a list of all the methods that are called throughout the game.
-# Copy and pasted from the bombsquad API (documentation): http://www.froemling.net/docs/bombsquad-python-api
-#if you really want in-depth explanations of specific terms, go there ^
+# http://www.froemling.net/docs/bombsquad-python-api
+#if you really want in-depth explanations of specific terms, go here ^
 
 
 
@@ -59,8 +58,6 @@ class NewGame(bs.TeamGameActivity):
     def onBegin(self):
         #Do normal stuff: calls to the main class to operate everything that usually would be done
         bs.TeamGameActivity.onBegin(self)
-        #make a scoreboard
-        bs.ScoreBoard(label='Points')
         #Declare a set of bots (enemies) that we will use later
         self._bots = bs.BotSet()
         #make another scoreboard? IDK why I did this, probably to make it easier to refer to in the future
@@ -71,8 +68,6 @@ class NewGame(bs.TeamGameActivity):
         #Now we go ahead and put that on the scoreboard
         for team in self.teams:
             self._scoredis.setTeamValue(team,team.gameData['score'])
-        #Set the count to 1  Don't ask me why, it was a part of coding in the earlier stages
-        self._count = 1
         #Make the initial flags
         self._flag1 = bs.Flag(position=(0,3,1),touchable=True,color=(0,0,1))
         self._flag2 = bs.Flag(position=(0,3,-5),touchable=True,color=(1,0,0))
