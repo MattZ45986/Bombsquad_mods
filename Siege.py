@@ -8,6 +8,15 @@ def bsGetAPIVersion():
 def bsGetGames():
     return [Siege]
 
+class SiegePowerupFactory(bs.PowerupFactory):
+    def getRandomPowerupType(self,forceType=None,excludeTypes=['tripleBombs','iceBombs','impactBombs','shield','health','curse','snoball','bunny']):
+        while True:
+            t = self._powerupDist[random.randint(0,len(self._powerupDist)-1)]
+            if t not in excludeTypes:
+                break
+        self._lastPowerupType = t
+        return t
+
 class Puck(bs.Actor): # Borrowed from the hockey game
 
     def __init__(self, position=(0,1,0)):
