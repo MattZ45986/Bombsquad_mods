@@ -1,6 +1,7 @@
 #Siege
 import bs
 import bsUtils
+import random
 
 def bsGetAPIVersion():
     return 4
@@ -88,6 +89,11 @@ class Siege(bs.TeamGameActivity):
         
     def onTransitionIn(self):
         bs.TeamGameActivity.onTransitionIn(self,music='FlagCatcher')
+
+    def _standardDropPowerup(self,index,expire=True):
+        import bsPowerup
+        bsPowerup.Powerup(position=self.getMap().powerupSpawnPoints[index],
+                          powerupType=SiegePowerupFactory().getRandomPowerupType(),expire=expire).autoRetain()
 
     def onBegin(self):
         bs.TeamGameActivity.onBegin(self)
