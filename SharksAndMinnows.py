@@ -128,7 +128,6 @@ class SharksAndMinnows(bs.TeamGameActivity):
                 return
         except:
             pass
-        bs.screenMessage("spawned")
         name = player.getName()
         color = player.color
         highlight = player.highlight
@@ -154,7 +153,6 @@ class SharksAndMinnows(bs.TeamGameActivity):
         if player.actor is not None: player.actor.node.delete()
         player.setActor(spaz)
         pos = [0,.5,-5+(random.random()*10)]
-        bs.screenMessage("shark")
         player.actor.connectControlsToPlayer(enableBomb=False, enableRun = True, enableJump = False, enablePickUp = True,enablePunch = False)
         spaz.handleMessage(bs.StandMessage(pos,90))
         self.checkEnd()
