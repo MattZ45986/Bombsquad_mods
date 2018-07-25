@@ -87,7 +87,7 @@ class Massacre(bs.TeamGameActivity):
         # Display a warning message
         bs.screenMessage('Here come the Bots', color = (1,0,0))
         # Generate 100 kronks in random positions
-        for i in range(0,100):
+        for i in range(0,10):
             # (This is the center)
             p = [0, 2.5, -3]
             bs.gameTimer(1000,bs.Call(self._bots.spawnBot,bs.ToughGuyBotLame,pos=(p[0] + random.randint(-3,3),2.5,p[2] + random.randint(-3,3)),spawnTime=3000))
