@@ -1,10 +1,16 @@
+#FlagDay
 import bs
 import random
+import bsUtils
 
 # http://www.froemling.net/docs/bombsquad-python-api
 #if you really want in-depth explanations of specific terms, go here ^
 
-
+class FlagBearer(bs.PlayerSpaz):
+    def handleMessage(self, m):
+        bs.PlayerSpaz.handleMessage(self, m)
+        if isinstance(m, bs.PowerupMessage):
+            self.getActivity().setupNextRound()
 
 #This gives the API version to the game to make sure that we are using the right vocabulary
 def bsGetAPIVersion():
@@ -12,18 +18,18 @@ def bsGetAPIVersion():
 
 #This tells the game what kind of program this is
 def bsGetGames():
-    return [NewGame]
+    return [FlagDay]
 
 #this gives the game a unique code for our game in this case: "NewGame 124" (One of my other games was NewGame123) P.S. Don't change this half-way through making it
 def bsGetLevels():
-    return [bs.Level('NewGame 124',
+    return [bs.Level('FlagDay123',
                      displayName='${GAME}',
-                     gameType=NewGame,
+                     gameType=FlagDay,
                      settings={},
                      previewTexName='courtyardPreview')]
 
 #this is the class that will actually be saved to the game as a mini-game
-class NewGame(bs.TeamGameActivity):
+class FlagDay(bs.TeamGameActivity):
 
 #gives it a name
     @classmethod
@@ -68,16 +74,16 @@ class NewGame(bs.TeamGameActivity):
         #Now we go ahead and put that on the scoreboard
         for team in self.teams:
             self._scoredis.setTeamValue(team,team.gameData['score'])
-        #Make the initial flags
-        self._flag1 = bs.Flag(position=(0,3,1),touchable=True,color=(0,0,1))
-        self._flag2 = bs.Flag(position=(0,3,-5),touchable=True,color=(1,0,0))
-        self._flag3 = bs.Flag(position=(3,3,-2),touchable=True,color=(0,1,0))
-        self._flag4 = bs.Flag(position=(-3,3,-2),touchable=True,color=(1,1,1))
-        self._flag5 = bs.Flag(position=(1.8,3,.2),touchable=True,color=(0,1,1))
-        self._flag6 = bs.Flag(position=(-1.8,3,.2),touchable=True,color=(1,0,1))
-        self._flag7 = bs.Flag(position=(1.8,3,-3.8),touchable=True,color=(1,1,0))
-        self._flag8 = bs.Flag(position=(-1.8,3,-3.8),touchable=True,color=(0,0,0))
-        self._flag9 = bs.Flag(position=(-10,5,5), touchable=True, color=(.5,.5,.5))
+        self.resetFlags()
+        self.queueLine = []
+        for player in self.players:
+            if player.actor is not None:
+                player.actor.handleMessage(bs.DieMessage())
+                player.actor.node.delete()
+            self.queueLine.append(player)
+        self.spawnPlayerSpaz(self.queueLine.pop(0),(0,3,-2))
+        self.lastPrize = None
+        
 
 #This handles all the messages that the game throws at us
     def handleMessage(self,m):
@@ -95,9 +101,11 @@ class NewGame(bs.TeamGameActivity):
         #If a player died...
         if isinstance(m,bs.PlayerSpazDeathMessage):
             #give them a nice farewell
+            if bs.getGameTime() < 500: return
             guy = m.spaz.getPlayer()
             bs.screenMessage(str(guy.getName()) + " died!",color=guy.color)
             #check to see if we can end the game
+            if len(self.queueLine) > 0: self.spawnPlayerSpaz(self.queueLine.pop(0),(0,3,-2))
             self.checkGame()
 
         #If a bot died...
@@ -109,6 +117,35 @@ class NewGame(bs.TeamGameActivity):
             #update the scores
             for team in self.teams:
                 self._scoredis.setTeamValue(team,team.gameData['score'])
+
+    def spawnPlayerSpaz(self,player,position=(0,0,0),angle=None):
+        name = player.getName()
+        color = player.color
+        highlight = player.highlight
+
+        lightColor = bsUtils.getNormalizedColor(color)
+        displayColor = bs.getSafeColor(color,targetIntensity=0.75)
+        spaz = FlagBearer(color=color,
+                             highlight=highlight,
+                             character=player.character,
+                             player=player)
+        player.setActor(spaz)
+        if isinstance(self.getSession(),bs.CoopSession) and self.getMap().getName() in ['Courtyard','Tower D']:
+            mat = self.getMap().preloadData['collideWithWallMaterial']
+            spaz.node.materials += (mat,)
+            spaz.node.rollerMaterials += (mat,)
+        spaz.node.name = name
+        spaz.node.nameColor = displayColor
+        spaz.connectControlsToPlayer()
+        self.scoreSet.playerGotNewSpaz(player,spaz)
+        spaz.handleMessage(bs.StandMessage(position,angle if angle is not None else random.uniform(0,360)))
+        t = bs.getGameTime()
+        bs.playSound(self._spawnSound,1,position=spaz.node.position)
+        light = bs.newNode('light',attrs={'color':lightColor})
+        spaz.node.connectAttr('position',light,'position')
+        bsUtils.animate(light,'intensity',{0:0,250:1,500:0})
+        bs.gameTimer(500,light.delete)
+        return spaz
 
 
 
@@ -136,6 +173,12 @@ class NewGame(bs.TeamGameActivity):
         self._flag7 = None
         self._flag8 = None
 
+    def setupNextRound(self):
+        self.killFlags()
+        self._bots.clear()
+        self.resetFlags()
+        
+
 #a method to give the prize recipient a prize depending on what flag he took (not really).
     def givePrize(self, prize):
 
@@ -145,8 +188,8 @@ class NewGame(bs.TeamGameActivity):
             #give them a nice message
             bs.screenMessage("You were", color=(1,0,0))
             bs.screenMessage("CURSED", color=(.1,.1,.1))
-            #reset the flags
-            self.resetFlags()
+            self.healthBox = bs.Powerup(position=(-7,6,-5),powerupType='health')
+            self.lastPrize = 'curse'
         if prize == 2:
             #Make them appear frozen
             self._prizeRecipient.actor.handleMessage(bs.FreezeMessage())
@@ -155,7 +198,7 @@ class NewGame(bs.TeamGameActivity):
             #Again a nice message
             bs.screenMessage("You were", color=(1,1,1))
             bs.screenMessage("FROZEN", color=(.7,.7,1))
-            self.resetFlags()
+            self.lastPrize = 'frozen'
         if prize == 3:
             team = self._prizeRecipient.getTeam()
             #Give them a nice 100 points
@@ -164,7 +207,7 @@ class NewGame(bs.TeamGameActivity):
             for team in self.teams:
                 self._scoredis.setTeamValue(team,team.gameData['score'])
             bs.screenMessage("!!!You won 100 points!!!", color=(0,.9,0))
-            self.resetFlags()
+            self.lastPrize = '100'
         if prize == 4:
             team = self._prizeRecipient.getTeam()
             #give 'em ten points
@@ -172,7 +215,7 @@ class NewGame(bs.TeamGameActivity):
             for team in self.teams:
                 self._scoredis.setTeamValue(team,team.gameData['score'])
             bs.screenMessage("You won 10 points", color=(.1,1,.1))
-            self.resetFlags()
+            self.lastPrize = '10'
         if prize == 5:
             #Make it rain bombs
             bs.screenMessage("BOMB RAIN!", color=(1,.5,.16))
@@ -181,7 +224,7 @@ class NewGame(bs.TeamGameActivity):
                 for azz in range(-5,2):
                     #for each position make a bomb drop there
                     self.makeBomb(bzz,azz)
-            self.resetFlags()
+            self.lastPrize = 'bombrain'
         if prize == 6:
             #makes killing a bas guy worth 50 points
             self._badGuyCost = 50
@@ -192,7 +235,7 @@ class NewGame(bs.TeamGameActivity):
             self._player.equipBoxingGloves()
             #...and a shield
             self._player.equipShields()
-            self.resetFlags()
+            self.lastPrize = 'ninja'
         if prize == 7:
             #makes killing a bad guy worth ten points
             self._badGuyCost = 10
@@ -205,7 +248,7 @@ class NewGame(bs.TeamGameActivity):
                     #and we give our player boxing gloves and a shield
             self._player.equipBoxingGloves()
             self._player.equipShields()
-            self.resetFlags()
+            self.lastPrize = 'lameguys'
         if prize == 8:
             bs.screenMessage("!JACKPOT!", color=(1,0,0))
             bs.screenMessage("!JACKPOT!", color=(0,1,0))
@@ -216,7 +259,7 @@ class NewGame(bs.TeamGameActivity):
             # and update the scores
             for team in self.teams:
                 self._scoredis.setTeamValue(team,team.gameData['score'])
-            self.resetFlags()
+            self.lastPrize = 'jackpot'
 
 #called in prize #5
     def makeBomb(self,xpos,zpos):
