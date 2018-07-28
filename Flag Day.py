@@ -2,6 +2,7 @@
 import bs
 import random
 import bsUtils
+import math
 
 # http://www.froemling.net/docs/bombsquad-python-api
 #if you really want in-depth explanations of specific terms, go here ^
@@ -10,7 +11,8 @@ class FlagBearer(bs.PlayerSpaz):
     def handleMessage(self, m):
         bs.PlayerSpaz.handleMessage(self, m)
         if isinstance(m, bs.PowerupMessage):
-            self.getActivity().setupNextRound()
+            if self.getActivity().lastPrize in ('curse','ringoffire'):
+                self.getActivity().setupNextRound()
 
 #This gives the API version to the game to make sure that we are using the right vocabulary
 def bsGetAPIVersion():
@@ -97,7 +99,7 @@ class FlagDay(bs.TeamGameActivity):
             self._prizeRecipient = m.node.getDelegate().getPlayer()
             #Call a method to kill the flags
             self.killFlags()
-            self.givePrize(random.randint(1,8))
+            self.givePrize(2)
         #If a player died...
         if isinstance(m,bs.PlayerSpazDeathMessage):
             #give them a nice farewell
@@ -191,14 +193,9 @@ class FlagDay(bs.TeamGameActivity):
             self.healthBox = bs.Powerup(position=(-7,6,-5),powerupType='health')
             self.lastPrize = 'curse'
         if prize == 2:
-            #Make them appear frozen
-            self._prizeRecipient.actor.handleMessage(bs.FreezeMessage())
-            #then actually freeze them :)
-            self._prizeRecipient.actor.handleMessage(bs.ShouldShatterMessage())
-            #Again a nice message
-            bs.screenMessage("You were", color=(1,1,1))
-            bs.screenMessage("FROZEN", color=(.7,.7,1))
-            self.lastPrize = 'frozen'
+            self.setupROF()
+            bs.screenMessage("RUN", color=(1,.2,.1))
+            self.lastPrize = 'ringoffire'
         if prize == 3:
             team = self._prizeRecipient.getTeam()
             #Give them a nice 100 points
@@ -265,6 +262,18 @@ class FlagDay(bs.TeamGameActivity):
     def makeBomb(self,xpos,zpos):
         #makes a bomb at the given position then auto-retains it aka: makes sure it doesn't disappear because there is no reference to it
         b=bs.Bomb(position=(xpos, 12, zpos)).autoRetain()
+
+    def setupROF(self):
+        for i in range(10):
+            self.blastNum = i
+            bs.gameTimer(2000-20*i,self.makeBlastRing)
+
+    def makeBlastRing(self):
+        length = 10 - self.blastNum
+        for angle in range(0,360,45):
+            x = length * math.cos(math.radians(angle))
+            z = length * math.sin(math.radians(angle))
+            blast = bs.Blast(position=(x,3,z-2))
 
 #checks to see if we should end the game
     def checkGame(self):
