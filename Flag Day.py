@@ -264,16 +264,15 @@ class FlagDay(bs.TeamGameActivity):
         b=bs.Bomb(position=(xpos, 12, zpos)).autoRetain()
 
     def setupROF(self):
-        for i in range(10):
-            self.blastNum = i
-            bs.gameTimer(2000-20*i,self.makeBlastRing)
+        
 
-    def makeBlastRing(self):
-        length = 10 - self.blastNum
+    def makeBlastRing(self,length):
+        if length = 0: return
         for angle in range(0,360,45):
             x = length * math.cos(math.radians(angle))
             z = length * math.sin(math.radians(angle))
             blast = bs.Blast(position=(x,3,z-2))
+        self.makeBlastRing(length-1)
 
 #checks to see if we should end the game
     def checkGame(self):
