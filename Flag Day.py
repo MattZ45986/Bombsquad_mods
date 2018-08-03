@@ -29,7 +29,7 @@ def bsGetGames():
 
 #this gives the game a unique code for our game in this case: "NewGame 124" (One of my other games was NewGame123) P.S. Don't change this half-way through making it
 def bsGetLevels():
-    return [bs.Level('FlagDay123',
+    return [bs.Level('FlagDay45986',
                      displayName='${GAME}',
                      gameType=FlagDay,
                      settings={},
@@ -61,12 +61,17 @@ class FlagDay(bs.TeamGameActivity):
 #Tells the game what kinds of seesions are supported by this mini-game
     @classmethod
     def supportsSessionType(cls,sessionType):
-        return True if issubclass(sessionType,bs.FreeForAllSession) or issubclass(sessionType,bs.TeamsSession)else False
+        return True if issubclass(sessionType,bs.FreeForAllSession) or issubclass(sessionType,bs.TeamsSession) or issubclass(sessionType,bs.CoopSession) else False
 
 #Tells the game what to do on the transition in
     def onTransitionIn(self):
         #Sets the music to "To the Death"
         bs.TeamGameActivity.onTransitionIn(self,music='ToTheDeath')
+
+    def onPlayerJoin(self, player):
+        if self.hasBegun():
+            bs.screenMessage(bs.Lstr(resource='playerDelayedJoinText', subs=[('${PLAYER}', player.getName(full=True))]),
+                             color=(0, 1, 0))
 
     def onBegin(self):
         #Do normal stuff: calls to the main class to operate everything that usually would be done
@@ -75,7 +80,7 @@ class FlagDay(bs.TeamGameActivity):
         #Declare a set of bots (enemies) that we will use later
         self._bots = bs.BotSet()
         #make another scoreboard? IDK why I did this, probably to make it easier to refer to in the future
-        self._scoredis = bs.ScoreBoard(label='Points')
+        self._scoredis = bs.ScoreBoard()
         #for each team in the game's directory, give them a score of zero
         for team in self.teams:
             team.gameData['score'] = 0
@@ -200,7 +205,7 @@ class FlagDay(bs.TeamGameActivity):
             #give them a nice message
             bs.screenMessage("You were", color=(1,0,0))
             bs.screenMessage("CURSED", color=(.1,.1,.1))
-            self.makeHealthBox((-7,6,-5))
+            self.makeHealthBox((0,0,0))
             self.lastPrize = 'curse'
             bs.gameTimer(5000,self.setupNextRound)
         if prize == 2:
@@ -232,7 +237,7 @@ class FlagDay(bs.TeamGameActivity):
                 for azz in range(-5,2):
                     #for each position make a bomb drop there
                     self.makeBomb(bzz,azz)
-            bs.gameTimer(3600,bs.Call(self.makeHealthBox,(0,5,-5)))
+            bs.gameTimer(3600,bs.Call(self.makeHealthBox))
             bs.gameTimer(3400,self.givePoints)
             bs.gameTimer(3500,self.setupNextRound)
             self.lastPrize = 'bombrain'
@@ -293,6 +298,10 @@ class FlagDay(bs.TeamGameActivity):
             self.updateScore()
 
     def makeHealthBox(self, position=(0,3,0)):
+        if position == (0,3,0):
+            position = (random.randint(-6,6),6,random.randint(-6,4))
+        elif position == (0,0,0):
+            position = random.choice(((-7,6,-5),(7,6,-5),(-7,6,1),(7,6,1)))
         self.healthBox = bs.Powerup(position=position,powerupType='health').autoRetain()
 
 #called in prize #5
@@ -306,7 +315,7 @@ class FlagDay(bs.TeamGameActivity):
 
     def makeBlastRing(self,length):
         if length == 0:
-            self.makeHealthBox((0,6,-5))
+            self.makeHealthBox()
             self.setupNextRound()
             self._prizeRecipient.getTeam().gameData['score'] += 100
             self.updateScore()
@@ -316,7 +325,7 @@ class FlagDay(bs.TeamGameActivity):
             angle %= 360
             x = length * math.cos(math.radians(angle))
             z = length * math.sin(math.radians(angle))
-            blast = bs.Blast(position=(x,2.2,z-2),blastRadius=3)
+            blast = bs.Blast(position=(x,2.2,z-2),blastRadius=3.5)
         if self._prizeRecipient.isAlive(): bs.gameTimer(750,bs.Call(self.makeBlastRing,length-1))
         else: self.setupNextRound()
 
@@ -350,52 +359,3 @@ class FlagDay(bs.TeamGameActivity):
     but I think you will get the hang of it if you want to pursue it.  If you do, feel free to ask me anything. :)
                                                                            - Matt
 """
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
