@@ -2,6 +2,8 @@
 
 # This simple game tests each player's ability in an underappreciated aspect of the game: jumping.
 import bs
+import bsUtils
+import random
 
 def bsGetAPIVersion():
     return 4
