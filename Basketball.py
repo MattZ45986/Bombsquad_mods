@@ -83,7 +83,6 @@ class Baller(bs.PlayerSpaz):
     def onPickUpPress(self):
         bs.PlayerSpaz.onPickUpPress(self)
         self.node.getDelegate()._pos = self.node.positionCenter
-        bs.screenMessage(str(self.node.positionCenter))
     
 class BasketBomb(bs.Bomb):
     def __init__(self,position=(0,1,0),velocity=(0,0,0),bombType='normal',blastRadius=2.0,sourcePlayer=None,owner=None):
