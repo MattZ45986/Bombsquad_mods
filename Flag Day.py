@@ -83,6 +83,7 @@ class FlagDay(bs.TeamGameActivity):
     def onBegin(self):
         self.bombSurvivor = None
         self.light = None
+        self.set = False
         #Do normal stuff: calls to the main class to operate everything that usually would be done
         bs.TeamGameActivity.onBegin(self)
         self.b = []
@@ -106,7 +107,7 @@ class FlagDay(bs.TeamGameActivity):
                 player.actor.node.delete()
             self.queueLine.append(player)
         self.spawnPlayerSpaz(self.queueLine[self.playerIndex%len(self.queueLine)],(0,3,-2))
-        self.lastPrize = None
+        self.lastPrize = 'none'
         self.currentPlayer = self.queueLine[0]
         
 
@@ -128,9 +129,10 @@ class FlagDay(bs.TeamGameActivity):
         if isinstance(m,bs.PlayerSpazDeathMessage):
             #give them a nice farewell
             if bs.getGameTime() < 500: return
-            if m.how == 'game':
-                return
+            if m.how == 'game': return
             guy = m.spaz.getPlayer()
+            if self.lastPrize in ('lameguys','none') and m.how == 'punch': 
+                self.setupNextRound()
             bs.screenMessage(str(guy.getName()) + " died!",color=guy.color)
             guy.gameData['dead'] = True
             #check to see if we can end the game
@@ -215,12 +217,13 @@ class FlagDay(bs.TeamGameActivity):
         self.playerIndex %= len(self.queueLine)
         if len(self.queueLine) > 0:
             while self.queueLine[self.playerIndex].gameData['dead']:
-                if c > len(self.queueLine): self.checkEnd()
+                if c > len(self.queueLine): return
                 self.playerIndex += 1
                 self.playerIndex %= len(self.queueLine)
                 c += 1
             self.spawnPlayerSpaz(self.queueLine[self.playerIndex],(0,3,-2))
             self.currentPlayer = self.queueLine[self.playerIndex]
+        self.lastPrize = 'none'
                 
         
 
@@ -373,11 +376,12 @@ class FlagDay(bs.TeamGameActivity):
 
 #called when ready to end the game
     def endGame(self):
+        if self.set == True: return
+        self.set = True
         results = bs.TeamGameResults()
         #Set the results for the game to display at the end of the game
         for team in self.teams:
             results.setTeamScore(team, team.gameData['score'])
-        #End the game with the given results
         self.end(results=results)
 
 """     So there you have it, one python mod for a professional game.
