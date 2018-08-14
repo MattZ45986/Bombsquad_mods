@@ -108,6 +108,7 @@ class SimonSays(bs.TeamGameActivity):
             team.gameData['score'] = 0
         for player in self.players:
             player.gameData['score'] = 0
+            self.spawnPlayerSpaz(player,self.getMap().getFFAStartPosition(self.players))
             player.actor.connectControlsToPlayer(enableBomb=False, enablePunch = s["Enable Punching"], enablePickUp = s["Enable Picking Up"], enableRun = True, enableJump = s["Enable Jumping"])
         self.explainGame()
 
