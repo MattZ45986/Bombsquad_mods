@@ -100,6 +100,7 @@ class FlagDay(bs.TeamGameActivity):
         self.queueLine = []
         self.playerIndex = 0
         for player in self.players:
+            player.gameData['dead'] = False
             if player.actor is not None:
                 player.actor.handleMessage(bs.DieMessage())
                 player.actor.node.delete()
@@ -107,7 +108,6 @@ class FlagDay(bs.TeamGameActivity):
         self.spawnPlayerSpaz(self.queueLine[self.playerIndex%len(self.queueLine)],(0,3,-2))
         self.lastPrize = None
         self.currentPlayer = self.queueLine[0]
-        bs.screenMessage(str(len(self.queueLine)))
         
 
 #This handles all the messages that the game throws at us
@@ -123,18 +123,18 @@ class FlagDay(bs.TeamGameActivity):
             #Call a method to kill the flags
             self.killFlags()
             self.givePrize(random.randint(1,8))
-            bs.screenMessage(str(self.queueLine))
             self.currentPlayer = self._prizeRecipient
         #If a player died...
         if isinstance(m,bs.PlayerSpazDeathMessage):
             #give them a nice farewell
             if bs.getGameTime() < 500: return
-            if m.how == 'game': return
+            if m.how == 'game':
+                return
             guy = m.spaz.getPlayer()
             bs.screenMessage(str(guy.getName()) + " died!",color=guy.color)
+            guy.gameData['dead'] = True
             #check to see if we can end the game
-            self.setupNextRound()
-            self.checkGame()
+            self.checkEnd()
 
         #If a bot died...
         if isinstance(m,bs.SpazBotDeathMessage):
@@ -202,21 +202,26 @@ class FlagDay(bs.TeamGameActivity):
         self._flag8 = None
 
     def setupNextRound(self):
-        bs.screenMessage(str(self.queueLine))
         if self.light is not None: self.light.delete()
         for bomb in self.b:
             bomb.handleMessage(bs.DieMessage())
         self.killFlags()
         self._bots.clear()
         self.resetFlags()
-        if not self.currentPlayer.isAlive(): self.queueLine.remove(self.currentPlayer)
         self.currentPlayer.actor.handleMessage(bs.DieMessage(how='game'))
         self.currentPlayer.actor.node.delete()
+        c = 0
+        self.playerIndex += 1
+        self.playerIndex %= len(self.queueLine)
         if len(self.queueLine) > 0:
-            self.playerIndex += 1
-            self.playerIndex %= len(self.queueLine)
+            while self.queueLine[self.playerIndex].gameData['dead']:
+                if c > len(self.queueLine): self.checkEnd()
+                self.playerIndex += 1
+                self.playerIndex %= len(self.queueLine)
+                c += 1
             self.spawnPlayerSpaz(self.queueLine[self.playerIndex],(0,3,-2))
             self.currentPlayer = self.queueLine[self.playerIndex]
+                
         
 
 #a method to give the prize recipient a prize depending on what flag he took (not really).
@@ -361,9 +366,10 @@ class FlagDay(bs.TeamGameActivity):
         else: self.setupNextRound()
 
 #checks to see if we should end the game
-    def checkGame(self):
-        if len(self.queueLine) == 0:
-            self.endGame()
+    def checkEnd(self):
+        for player in self.queueLine:
+            if not player.gameData['dead']: return
+        self.endGame()
 
 #called when ready to end the game
     def endGame(self):
