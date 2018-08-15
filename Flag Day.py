@@ -44,6 +44,20 @@ def bsGetLevels():
 #this is the class that will actually be saved to the game as a mini-game
 class FlagDay(bs.TeamGameActivity):
 
+    def __init__(self,settings):
+        bs.TeamGameActivity.__init__(self,settings)
+        self.info = bs.NodeActor(bs.newNode('text',
+                                                   attrs={'vAttach': 'bottom',
+                                                          'hAlign': 'center',
+                                                          'vrDepth': 0,
+                                                          'color': (0,.2,0),
+                                                          'shadow': 1.0,
+                                                          'flatness': 1.0,
+                                                          'position': (0,0),
+                                                          'scale': 0.8,
+                                                          'text': "Created by MattZ45986 on Github",
+                                                          }))
+
 #gives it a name
     @classmethod
     def getName(cls):
@@ -80,6 +94,13 @@ class FlagDay(bs.TeamGameActivity):
             bs.screenMessage(bs.Lstr(resource='playerDelayedJoinText', subs=[('${PLAYER}', player.getName(full=True))]),
                              color=(0, 1, 0))
 
+    def onPlayerLeave(self, player):
+        if player is self.currentPlayer:
+            self.setupNextRound()
+        self.checkEnd()
+        bs.TeamGameActivity.onPlayerLeave(self,player)
+        self.queueLine.remove(player)
+
     def onBegin(self):
         self.bombSurvivor = None
         self.light = None
@@ -87,17 +108,6 @@ class FlagDay(bs.TeamGameActivity):
         #Do normal stuff: calls to the main class to operate everything that usually would be done
         bs.TeamGameActivity.onBegin(self)
         self.b = []
-        #Declare a set of bots (enemies) that we will use later
-        self._bots = bs.BotSet()
-        #make another scoreboard? IDK why I did this, probably to make it easier to refer to in the future
-        self._scoredis = bs.ScoreBoard()
-        #for each team in the game's directory, give them a score of zero
-        for team in self.teams:
-            team.gameData['score'] = 0
-        #Now we go ahead and put that on the scoreboard
-        for team in self.teams:
-            self._scoredis.setTeamValue(team,team.gameData['score'])
-        self.resetFlags()
         self.queueLine = []
         self.playerIndex = 0
         for player in self.players:
@@ -109,6 +119,18 @@ class FlagDay(bs.TeamGameActivity):
         self.spawnPlayerSpaz(self.queueLine[self.playerIndex%len(self.queueLine)],(0,3,-2))
         self.lastPrize = 'none'
         self.currentPlayer = self.queueLine[0]
+        #Declare a set of bots (enemies) that we will use later
+        self._bots = bs.BotSet()
+        #make another scoreboard? IDK why I did this, probably to make it easier to refer to in the future
+        self._scoredis = bs.ScoreBoard()
+        #for each team in the game's directory, give them a score of zero
+        for team in self.teams:
+            team.gameData['score'] = 0
+        #Now we go ahead and put that on the scoreboard
+        for player in self.queueLine:
+            self._scoredis.setTeamValue(player.getTeam(),player.getTeam().gameData['score'])
+        self.resetFlags()
+        
         
 
 #This handles all the messages that the game throws at us
@@ -131,10 +153,10 @@ class FlagDay(bs.TeamGameActivity):
             if bs.getGameTime() < 500: return
             if m.how == 'game': return
             guy = m.spaz.getPlayer()
-            if self.lastPrize in ('lameguys','none') and m.how == 'punch': 
-                self.setupNextRound()
             bs.screenMessage(str(guy.getName()) + " died!",color=guy.color)
             guy.gameData['dead'] = True
+            if guy is self.currentPlayer:
+                self.setupNextRound()
             #check to see if we can end the game
             self.checkEnd()
 
@@ -231,12 +253,12 @@ class FlagDay(bs.TeamGameActivity):
     def givePrize(self, prize):
         if prize == 1:
             #Curse him aka make him blow up in 5 seconds
-            self._prizeRecipient.actor.curse()
             #give them a nice message
             bs.screenMessage("You were", color=(1,0,0))
             bs.screenMessage("CURSED", color=(.1,.1,.1))
             self.makeHealthBox((0,0,0))
             self.lastPrize = 'curse'
+            self._prizeRecipient.actor.curse()
             bs.gameTimer(5500,self.setupNextRound)
         if prize == 2:
             self.setupROF()
@@ -266,8 +288,7 @@ class FlagDay(bs.TeamGameActivity):
                 for azz in range(-5,2):
                     #for each position make a bomb drop there
                     self.makeBomb(bzz,azz)
-            bs.gameTimer(3400,self.givePoints)
-            bs.gameTimer(3300,self.checkCurrentPlayer)
+            bs.gameTimer(3300,self.givePoints)
             self.lastPrize = 'bombrain'
         if prize == 6:
             self.setupBR()
@@ -297,18 +318,14 @@ class FlagDay(bs.TeamGameActivity):
             # and update the scores
             self.updateScore()
             self.lastPrize = 'jackpot'
-            self.setupNextRound()
+            bs.gameTimer(2000,self.setupNextRound)
 
     def updateScore(self):
-        for team in self.teams:
-                self._scoredis.setTeamValue(team,team.gameData['score'])
+        for player in self.queueLine:
+                self._scoredis.setTeamValue(player.getTeam(),player.getTeam().gameData['score'])
 
     def checkBots(self):
         if not self._bots.haveLivingBots():
-            self.setupNextRound()
-
-    def checkCurrentPlayer(self):
-        if self.currentPlayer.isAlive():
             self.setupNextRound()
 
     def makeLandMines(self):
@@ -340,8 +357,7 @@ class FlagDay(bs.TeamGameActivity):
 
     def makeBombRow(self, num):
         if num == 0:
-            bs.gameTimer(900, self.makeHealthBox)
-            bs.gameTimer(1000, self.checkCurrentPlayer)
+            bs.gameTimer(1000, self.setupNextRound)
             return
         for i in range(-11,7):
             self.b.append(bs.Bomb(position=(-3, 3, i/2.0), velocity=(12,0,0),bombType='normal', blastRadius=1.2))
@@ -354,7 +370,6 @@ class FlagDay(bs.TeamGameActivity):
 
     def makeBlastRing(self,length):
         if length == 0:
-            self.makeHealthBox()
             self.setupNextRound()
             self._prizeRecipient.getTeam().gameData['score'] += 50
             self.updateScore()
