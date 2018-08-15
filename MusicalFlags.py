@@ -1,7 +1,7 @@
 #Musical Flags
 
 import bs
-from random import randint
+import random
 import math
 import bsVector
 import bsUtils
@@ -14,7 +14,7 @@ def bsGetGames():
     return [MusicalFlags]
 
 def bsGetLevels():
-    return [bs.Level('Musical Flags',
+    return [bs.Level('Musical Flags Beta',
                      displayName='${GAME}',
                      gameType=MusicalFlags,
                      settings={},
@@ -44,7 +44,7 @@ class MusicalFlags(bs.TeamGameActivity):
     def getSettings(cls, sessionType):
         return [("Epic Mode", {'default': False}),
                 ("Enable Running", {'default': True}),
-                ("Enable Punching", {'default': True}),
+                ("Enable Punching", {'default': False}),
                 ("Time Limit", {
                     'choices': [
                         ("30 Seconds", 30),
@@ -64,6 +64,7 @@ class MusicalFlags(bs.TeamGameActivity):
 
     def __init__(self,settings):
         bs.TeamGameActivity.__init__(self,settings)
+        self.nodes = []
         if self.settings['Epic Mode']: self._isSlowMotion = True
         self.info = bs.NodeActor(bs.newNode('text',
                                                    attrs={'vAttach': 'bottom',
@@ -83,23 +84,26 @@ class MusicalFlags(bs.TeamGameActivity):
     def onBegin(self):
         self.timer = bs.OnScreenCountdown(self.settings['Time Limit'], endCall=self.endGame)
         self.timer.start()
-        self.joined = []
         self.ended = False
-        self.roundNumber = 1
+        self.roundNum = 0
+        self.numPickedUp = 0
         self.nodes = []
         self.flags = []
+        self.spawned = []
         self.leftPlayers = 0
         self.scores = {}
         for player in self.players:
             self.scores[player] = 0
-        self.survived = self.players
+            player.gameData['survived'] = True
+            player.gameData['done'] = False
+            player.gameData['score'] = 0
         bs.TeamGameActivity.onBegin(self)
         self.makeRound()
         
     def onPlayerJoin(self,player):
         if self.hasBegun():
             bs.screenMessage(bs.Lstr(resource='playerDelayedJoinText',subs=[('${PLAYER}',player.getName(full=True))]),color=(0,1,0))
-            self.joined.append(player)
+            self.player.gameData['survived'] = False
             self.checkEnd()
 
     def onPlayerLeave(self,player):
@@ -111,11 +115,20 @@ class MusicalFlags(bs.TeamGameActivity):
         else: self.endRoundFromLeave()
 
     def makeRound(self):
-        angle = randint(0,359)
-        try: spacing = 360 // len(self.survived)-1
-        except: return
+        for player in self.players:
+            if player.gameData['survived']: player.gameData['score'] += 10
+        self.roundNum += 1
+        self.flags = []
+        self.spawned = []
+        angle = random.randint(0,359)
+        c=0
+        for player in self.players:
+            if player.gameData['survived']: c+=1
+        try: spacing = 360 // (c-1)
+        except: self.checkEnd()
         colors = [(1,0,0),(0,1,0),(0,0,1),(1,1,0),(1,0,1),(0,1,1),(0,0,0)]
-        for i in range(len(self.survived)-1):
+        
+        for i in range(c-1):
             angle += spacing
             angle %= 360
             x=6 * sin(degrees(angle))
@@ -123,17 +136,18 @@ class MusicalFlags(bs.TeamGameActivity):
             flag = bs.Flag(position=(x+.5,5,z-4), color=colors[i]).autoRetain()
             self.flags.append(flag)
         
-        for player in self.survived:
-            self.spawnPlayerSpaz(player,(.5,5,-4))
-        self.survived = []
+        for player in self.players:
+            player.gameData['done'] = False
+            if player.gameData['survived']:
+                self.spawnPlayerSpaz(player,(.5,5,-4))
+                self.spawned.append(player)
         
     def killRound(self):
-        deadGuy = list((set(self.players) - set(self.survived)))[0]
-        if deadGuy not in self.joined:
-            deadGuy.actor.handleMessage(bs.FreezeMessage())
-            deadGuy.actor.handleMessage(bs.ShouldShatterMessage())
-        for i in self.nodes:
-            i.delete()
+        self.numPickedUp = 0
+        for player in self.players:
+            if player.isAlive(): player.actor.handleMessage(bs.DieMessage())
+        for flag in self.flags: flag.node.delete()
+        for light in self.nodes: light.delete()
             
     def spawnPlayerSpaz(self,player,position=(.5,5,-4),angle=0):
         s = self.settings
@@ -143,7 +157,7 @@ class MusicalFlags(bs.TeamGameActivity):
         players = self.players
         num = len(players)
         i = 0
-        position = (.5,5,-4)
+        position = (-.5+random.random()*2,3+random.random()*2,-5+random.random()*2)
         angle = 0
         spaz = bs.PlayerSpaz(color=color,
                              highlight=highlight,
@@ -152,61 +166,67 @@ class MusicalFlags(bs.TeamGameActivity):
         player.setActor(spaz)
         spaz.connectControlsToPlayer(enableBomb=False, enableRun=s["Enable Running"], enablePunch=s["Enable Punching"])
         spaz.handleMessage(bs.StandMessage(position,angle))
+        spaz.node.name = name
+        spaz.node.nameColor = color
+        self.scoreSet.playerGotNewSpaz(player,spaz)
+
+        # move to the stand position and add a flash of light
+        spaz.handleMessage(bs.StandMessage(position,angle if angle is not None else random.uniform(0,360)))
+        t = bs.getGameTime()
+        bs.playSound(self._spawnSound,1,position=spaz.node.position)
+        light = bs.newNode('light',attrs={'color':color})
+        spaz.node.connectAttr('position',light,'position')
+        bsUtils.animate(light,'intensity',{0:0,250:1,500:0})
+        bs.gameTimer(500,light.delete)
+        return spaz
         
     def handleMessage(self, m):
         if isinstance(m, bs.FlagPickedUpMessage):
-            self.survived.append(m.node.getDelegate().getPlayer())
+            self.numPickedUp += 1
+            m.node.getDelegate().getPlayer().gameData['done'] = True
             l = bs.newNode('light',
-                                 owner=m.node,
+                                 owner=None,
                                  attrs={'color':m.node.color,
                                         'position':(m.node.positionCenter),
                                         'intensity':1})
             self.nodes.append(l)
             m.flag.handleMessage(bs.DieMessage())
             m.node.handleMessage(bs.DieMessage())
-            
+            m.node.delete()
+            if self.numPickedUp == len(self.flags):
+                for player in self.spawned:
+                    if not player.gameData['done']:
+                        bs.screenMessage(player.getName())
+                        player.gameData['survived'] = False
+                        spaz = player.actor.node.getDelegate()
+                        spaz.handleMessage(bs.StandMessage((0,3,-2)))
+                        bs.gameTimer(100,bs.Call(spaz.handleMessage, bs.FreezeMessage()))
+                        bs.gameTimer(2500,bs.Call(spaz.handleMessage, bs.ShouldShatterMessage()))
+                bs.gameTimer(3000,self.killRound)
+                bs.gameTimer(3050,self.makeRound)
+                        
         if isinstance(m, bs.PlayerSpazDeathMessage):
-            self.scores[m.spaz.getPlayer()] = self.roundNumber
-            if not self.roundOver(): self.spawnPlayerSpaz(m.spaz.getPlayer(),(.5,5,-4))
-            if not self.ended: bs.gameTimer(1000,bs.Call(self.checkEnd))
+            if m.how == 'fall': self.spawnPlayerSpaz(m.spaz.getPlayer())
+
+            
     def checkEnd(self):
         i = 0
         for player in self.players:
-            if player.isAlive():
+            if player.gameData['survived']:
                 i+=1
-        if i < 2:
-            self.roundNumber += 1
-            self.killRound()
-            if self.roundNumber == len(self.players) + self.leftPlayers: self.endGame()
-            else: self.makeRound()
-            
-    def roundOver(self):
-        if (len(self.survived) == len(self.players) - 1): return True
-        else: return False
+        if i <= 1:
+            self.endGame()
         
-    def endRoundFromLeave(self):
-        for player in self.players:
-            if player.isAlive():
-                self.survived.append(player)
-                player.handleMessage(bs.DieMessage())
-        for i in self.nodes:
-            i.delete()
-        for flag in self.flags:
-            flag.handleMessage(bs.DieMessage())
-        self.makeRound()
         
     def endGame(self):
         self.ended = True
         if isinstance(self.getSession(), bs.FreeForAllSession):
-            for player in self.players:
-                if player in self.survived:
-                    player.gameData['score'] = 1
-                else:
-                    player.gameData['score'] = 0
             results = bs.TeamGameResults()
             for team in self.teams:
+                score = 0
                 for player in team.players:
-                    if player not in self.joined: results.setTeamScore(team, self.scores[player] * 2)
+                    score += player.gameData['score']
+                results.setTeamScore(team, score)
         self.end(results=results)
         for i in self.nodes:
             i.delete()
