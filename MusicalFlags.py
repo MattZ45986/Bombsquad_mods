@@ -89,6 +89,7 @@ class MusicalFlags(bs.TeamGameActivity):
         self.numPickedUp = 0
         self.nodes = []
         self.flags = []
+        bs.screenMessage(str(len(self.flags)))
         self.spawned = []
         self.leftPlayers = 0
         self.scores = {}
@@ -107,12 +108,12 @@ class MusicalFlags(bs.TeamGameActivity):
             self.checkEnd()
 
     def onPlayerLeave(self,player):
+        bs.screenMessage(str(len(self.flags)))
         message = str(player.getName(icon=False)) + " has chickened out!"
         bs.screenMessage(message, color=player.color)
         player.actor.handleMessage(bs.DieMessage())
-        self.leftPlayers += 1
         if len(self.players) == 1: self.endGame()
-        else: self.endRoundFromLeave()
+        self.checkEnd()
 
     def makeRound(self):
         for player in self.players:
@@ -124,7 +125,13 @@ class MusicalFlags(bs.TeamGameActivity):
         c=0
         for player in self.players:
             if player.gameData['survived']: c+=1
-        try: spacing = 360 // (c-1)
+        spacing = 10
+        for player in self.players:
+            player.gameData['done'] = False
+            if player.gameData['survived']:
+                self.spawnPlayerSpaz(player,(.5,5,-4))
+                self.spawned.append(player)
+        try: spacing = 360 // (c)
         except: self.checkEnd()
         colors = [(1,0,0),(0,1,0),(0,0,1),(1,1,0),(1,0,1),(0,1,1),(0,0,0)]
         
@@ -136,18 +143,13 @@ class MusicalFlags(bs.TeamGameActivity):
             flag = bs.Flag(position=(x+.5,5,z-4), color=colors[i]).autoRetain()
             self.flags.append(flag)
         
-        for player in self.players:
-            player.gameData['done'] = False
-            if player.gameData['survived']:
-                self.spawnPlayerSpaz(player,(.5,5,-4))
-                self.spawned.append(player)
-        
     def killRound(self):
         self.numPickedUp = 0
         for player in self.players:
             if player.isAlive(): player.actor.handleMessage(bs.DieMessage())
         for flag in self.flags: flag.node.delete()
         for light in self.nodes: light.delete()
+        bs.screenMessage(str(len(self.flags)))
             
     def spawnPlayerSpaz(self,player,position=(.5,5,-4),angle=0):
         s = self.settings
@@ -169,6 +171,8 @@ class MusicalFlags(bs.TeamGameActivity):
         spaz.node.name = name
         spaz.node.nameColor = color
         self.scoreSet.playerGotNewSpaz(player,spaz)
+
+        # move to the stand position and add a flash of light
         spaz.handleMessage(bs.StandMessage(position,angle if angle is not None else random.uniform(0,360)))
         t = bs.getGameTime()
         bs.playSound(self._spawnSound,1,position=spaz.node.position)
@@ -180,6 +184,7 @@ class MusicalFlags(bs.TeamGameActivity):
         
     def handleMessage(self, m):
         if isinstance(m, bs.FlagPickedUpMessage):
+            bs.screenMessage(str(len(self.flags)))
             self.numPickedUp += 1
             m.node.getDelegate().getPlayer().gameData['done'] = True
             l = bs.newNode('light',
@@ -202,12 +207,14 @@ class MusicalFlags(bs.TeamGameActivity):
                         bs.gameTimer(2500,bs.Call(spaz.handleMessage, bs.ShouldShatterMessage()))
                 bs.gameTimer(3000,self.killRound)
                 bs.gameTimer(3050,self.makeRound)
+            bs.screenMessage(str(len(self.flags)))
                         
         if isinstance(m, bs.PlayerSpazDeathMessage):
             if m.how == 'fall': self.spawnPlayerSpaz(m.spaz.getPlayer())
-
+            self.checkEnd()
             
     def checkEnd(self):
+        bs.screenMessage(str(len(self.flags)))
         i = 0
         for player in self.players:
             if player.gameData['survived']:
