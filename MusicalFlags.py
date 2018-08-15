@@ -169,8 +169,6 @@ class MusicalFlags(bs.TeamGameActivity):
         spaz.node.name = name
         spaz.node.nameColor = color
         self.scoreSet.playerGotNewSpaz(player,spaz)
-
-        # move to the stand position and add a flash of light
         spaz.handleMessage(bs.StandMessage(position,angle if angle is not None else random.uniform(0,360)))
         t = bs.getGameTime()
         bs.playSound(self._spawnSound,1,position=spaz.node.position)
