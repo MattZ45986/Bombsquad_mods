@@ -8,6 +8,8 @@ def bsGetAPIVersion():
 def bsGetGames():
     return [GravityFalls]
 
+class FlyMessage(object):
+    pass
 
 class Icon(bs.Actor):
         
@@ -92,75 +94,15 @@ class Icon(bs.Actor):
                                             300:1.0,350:0.0,400:1.0,450:0.0,500:1.0,550:0.2})
             lives = self._player.gameData['lives']
             if lives == 0: bs.gameTimer(600,self.updateForLives)
-            
 
-class AntiGravitySpaz(bs.Spaz):
-
-    def __init__(self, color=(1,1,1), highlight=(0.5,0.5,0.5), character="Spaz", sourcePlayer=None, startInvincible=True,
-                 canAcceptPowerups=True, powerupsExpire=False, demoMode=False):
-        bs.Spaz.__init__(self, color=color, highlight=highlight, character=character, sourcePlayer=sourcePlayer, startInvincible=startInvincible,
-                 canAcceptPowerups=canAcceptPowerups, powerupsExpire=powerupsExpire, demoMode=demoMode)
-
-        node = bs.newNode(type="spaz",
-                               delegate=self,
-                               attrs={'color':color,
-                                      'behaviorVersion':0 if demoMode else 1,
-                                      'demoMode':True if demoMode else False,
-                                      'highlight':highlight,
-                                      'jumpSounds':media['jumpSounds'],
-                                      'attackSounds':media['attackSounds'],
-                                      'impactSounds':media['impactSounds'],
-                                      'deathSounds':media['deathSounds'],
-                                      'pickupSounds':media['pickupSounds'],
-                                      'fallSounds':media['fallSounds'],
-                                      'colorTexture':media['colorTexture'],
-                                      'colorMaskTexture':media['colorMaskTexture'],
-                                      'headModel':media['headModel'],
-                                      'torsoModel':media['torsoModel'],
-                                      'pelvisModel':media['pelvisModel'],
-                                      'upperArmModel':media['upperArmModel'],
-                                      'foreArmModel':media['foreArmModel'],
-                                      'handModel':media['handModel'],
-                                      'upperLegModel':media['upperLegModel'],
-                                      'lowerLegModel':media['lowerLegModel'],
-                                      'toesModel':media['toesModel'],
-                                      'style':factory._getStyle(character),
-                                      'fly':self.fly,
-                                      'gravityScale':-.1,
-                                      'hockey':self._hockey,
-                                      'materials':materials,
-                                      'rollerMaterials':rollerMaterials,
-                                      'extrasMaterials':extrasMaterials,
-                                      'punchMaterials':(factory.punchMaterial,bs.getSharedObject('attackMaterial')),
-                                      'pickupMaterials':(factory.pickupMaterial,bs.getSharedObject('pickupMaterial')),
-                                      'invincible':startInvincible,
-                                      'sourcePlayer':sourcePlayer})
+class AntiGravityPlayerSpaz(bs.PlayerSpaz):
     def handleMessage(self,m):
-        if isinstance(m,bs.StandMessage):
-            self._lastStandPos = (m.position[0],m.position[1],m.position[2])
-            self.node.handleMessage("stand",m.position[0],m.position[1],m.position[2],m.angle)
-        else:
-            bs.Spaz.handleMesssage(self,m)
-
-class AntiGravityPlayerSpaz(AntiGravitySpaz,bs.PlayerSpaz):
-    def __init__(self,color=(1,1,1),highlight=(0.5,0.5,0.5),character="Spaz",player=None,powerupsExpire=True):
-        if player is None: player = bs.Player(None)
-        
-        AntiGravitySpaz.__init__(self,color=color,highlight=highlight,character=character,sourcePlayer=player,startInvincible=True,powerupsExpire=powerupsExpire)
-        self.lastPlayerAttackedBy = None # FIXME - should use empty player ref
-        self.lastAttackedTime = 0
-        self.lastAttackedType = None
-        self.heldCount = 0
-        self.lastPlayerHeldBy = None # FIXME - should use empty player ref here
-        self._player = player
-        if player.exists():
-            playerNode = bs.getActivity()._getPlayerNode(player)
-            self.node.connectAttr('torsoPosition',playerNode,'position')
-    def handleMessage(self,m):
-        if isinstance(m,bs.PickedUpMessage) or isinstance(m,bs.DroppedMessage) or isinstance(m,bs.DieMessage) or isinstance(m,bs.HitMessage):
-            bs.PlayerSpaz.handleMessage(self,m)
-        else:
-            AntiGravitySpaz.handleMessage(self,m)
+        if isinstance(m, FlyMessage):
+            self.node.handleMessage("impulse",self.node.position[0],self.node.position[1]+.5,self.node.position[2],
+                                        0,4,0,
+                                        3,10,0,0,
+                                        0,4,0)
+        else: bs.PlayerSpaz.handleMessage(self,m)
 
 class GravityFalls(bs.TeamGameActivity):
 
@@ -206,7 +148,17 @@ class GravityFalls(bs.TeamGameActivity):
         bs.TeamGameActivity.__init__(self,settings)
         if self.settings['Epic Mode']: self._isSlowMotion = True
 
-        # show messages when players die since it's meaningful here
+        self.info = bs.NodeActor(bs.newNode('text',
+                                                   attrs={'vAttach': 'bottom',
+                                                          'hAlign': 'center',
+                                                          'vrDepth': 0,
+                                                          'color': (0,.2,0),
+                                                          'shadow': 1.0,
+                                                          'flatness': 1.0,
+                                                          'position': (0,0),
+                                                          'scale': 0.8,
+                                                          'text': "Created by MattZ45986 on Github",
+                                                          }))
         self.announcePlayerDeaths = True
         
         try: self._soloMode = settings['Solo Mode']
@@ -226,35 +178,6 @@ class GravityFalls(bs.TeamGameActivity):
     def onTeamJoin(self,team):
         team.gameData['survivalSeconds'] = None
         team.gameData['spawnOrder'] = []
-
-    def onPlayerJoin(self, player):
-
-        # no longer allowing mid-game joiners here... too easy to exploit
-        if self.hasBegun():
-            player.gameData['lives'] = 0
-            player.gameData['icons'] = []
-            # make sure our team has survival seconds set if they're all dead
-            # (otherwise blocked new ffa players would be considered 'still alive' in score tallying)
-            if self._getTotalTeamLives(player.getTeam()) == 0 and player.getTeam().gameData['survivalSeconds'] is None:
-                player.getTeam().gameData['survivalSeconds'] = 0
-            bs.screenMessage(bs.Lstr(resource='playerDelayedJoinText',subs=[('${PLAYER}',player.getName(full=True))]),color=(0,1,0))
-            return
-        
-        player.gameData['lives'] = self.settings['Lives Per Player']
-
-        if self._soloMode:
-            player.gameData['icons'] = []
-            player.getTeam().gameData['spawnOrder'].append(player)
-            self._updateSoloMode()
-        else:
-            # create our icon and spawn
-            player.gameData['icons'] = [Icon(player,position=(0,50),scale=0.8)]
-            if player.gameData['lives'] > 0:
-                self.spawnPlayer(player)
-
-        # dont waste time doing this until begin
-        if self.hasBegun():
-            self._updateIcons()
 
     def _updateSoloMode(self):
         # for both teams, find the first player on the spawn order list with lives remaining
@@ -356,7 +279,7 @@ class GravityFalls(bs.TeamGameActivity):
         
     def spawnPlayer(self,player):
         
-        self.spawnPlayerSpaz(player,self._getSpawnPoint(player))
+        self.spawnPlayerSpaz(player,(0,5,0))
         if not self._soloMode:
             bs.gameTimer(300,bs.Call(self._printLives,player))
 
@@ -401,6 +324,37 @@ class GravityFalls(bs.TeamGameActivity):
         bs.PopupText('x'+str(player.gameData['lives']-1),color=(1,1,0,1),
                            offset=(0,-0.8,0),randomOffset=0.0,scale=1.8,position=pos).autoRetain()
 
+    def onPlayerJoin(self, player):
+
+        # no longer allowing mid-game joiners here... too easy to exploit
+        if self.hasBegun():
+            player.gameData['lives'] = 0
+            player.gameData['icons'] = []
+            # make sure our team has survival seconds set if they're all dead
+            # (otherwise blocked new ffa players would be considered 'still alive' in score tallying)
+            if self._getTotalTeamLives(player.getTeam()) == 0 and player.getTeam().gameData['survivalSeconds'] is None:
+                player.getTeam().gameData['survivalSeconds'] = 0
+            bs.screenMessage(bs.Lstr(resource='playerDelayedJoinText',subs=[('${PLAYER}',player.getName(full=True))]),color=(0,1,0))
+            return
+
+        bs.gameTimer(1000,bs.Call(self.raisePlayer, player))
+
+        player.gameData['lives'] = self.settings['Lives Per Player']
+
+        if self._soloMode:
+            player.gameData['icons'] = []
+            player.getTeam().gameData['spawnOrder'].append(player)
+            self._updateSoloMode()
+        else:
+            # create our icon and spawn
+            player.gameData['icons'] = [Icon(player,position=(0,50),scale=0.8)]
+            if player.gameData['lives'] > 0:
+                self.spawnPlayer(player)
+
+        # dont waste time doing this until begin
+        if self.hasBegun():
+            self._updateIcons()
+
     def onPlayerLeave(self,player):
 
         bs.TeamGameActivity.onPlayerLeave(self,player)
@@ -415,6 +369,12 @@ class GravityFalls(bs.TeamGameActivity):
         # update icons in a moment since our team will be gone from the list then
         bs.gameTimer(0, self._updateIcons)
 
+    def raisePlayer(self, player):
+        player.actor.handleMessage(FlyMessage())
+        bs.gameTimer(50,bs.Call(self.raisePlayer,player))
+        """spaz.node.handleMessage("impulse",spaz.node.position[0],spaz.node.position[1],spaz.node.position[2],
+                                        0,8,0,
+                                        2,6,0,0,0,8,0)"""
 
     def onBegin(self):
         bs.TeamGameActivity.onBegin(self)
