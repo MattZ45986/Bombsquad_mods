@@ -98,10 +98,12 @@ class Icon(bs.Actor):
 class AntiGravityPlayerSpaz(bs.PlayerSpaz):
     def handleMessage(self,m):
         if isinstance(m, FlyMessage):
-            self.node.handleMessage("impulse",self.node.position[0],self.node.position[1]+.5,self.node.position[2],
-                                        0,4,0,
+            try:
+                self.node.handleMessage("impulse",self.node.position[0],self.node.position[1]+.5,self.node.position[2],0,5,0,
                                         3,10,0,0,
-                                        0,4,0)
+                                        0,5,0)
+            except Exception: pass
+                
         else: bs.PlayerSpaz.handleMessage(self,m)
 
 class GravityFalls(bs.TeamGameActivity):
@@ -313,6 +315,7 @@ class GravityFalls(bs.TeamGameActivity):
         spaz.node.connectAttr('position',light,'position')
         bsUtils.animate(light,'intensity',{0:0,250:1,500:0})
         bs.gameTimer(500,light.delete)
+        bs.gameTimer(1000,bs.Call(self.raisePlayer, player))
         return spaz
 
     def _printLives(self,player):
@@ -336,8 +339,6 @@ class GravityFalls(bs.TeamGameActivity):
                 player.getTeam().gameData['survivalSeconds'] = 0
             bs.screenMessage(bs.Lstr(resource='playerDelayedJoinText',subs=[('${PLAYER}',player.getName(full=True))]),color=(0,1,0))
             return
-
-        bs.gameTimer(1000,bs.Call(self.raisePlayer, player))
 
         player.gameData['lives'] = self.settings['Lives Per Player']
 
@@ -371,7 +372,8 @@ class GravityFalls(bs.TeamGameActivity):
 
     def raisePlayer(self, player):
         player.actor.handleMessage(FlyMessage())
-        bs.gameTimer(50,bs.Call(self.raisePlayer,player))
+        if player.isAlive():
+            bs.gameTimer(50,bs.Call(self.raisePlayer,player))
         """spaz.node.handleMessage("impulse",spaz.node.position[0],spaz.node.position[1],spaz.node.position[2],
                                         0,8,0,
                                         2,6,0,0,0,8,0)"""
@@ -485,4 +487,6 @@ class GravityFalls(bs.TeamGameActivity):
         for team in self.teams:
             results.setTeamScore(team, team.gameData['survivalSeconds'])
         self.end(results=results)
+        
+
         
