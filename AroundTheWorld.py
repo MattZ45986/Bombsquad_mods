@@ -76,8 +76,7 @@ class AroundTheWorld(bs.TeamGameActivity):
             tStr = ' Your entire team has to finish.'
         else: tStr = ''
 
-        if self.settings['Laps'] > 1: s = ('
-        ${ARG1} laps.'+tStr,self.settings['Laps'])
+        if self.settings['Laps'] > 1: s = ('${ARG1} laps.'+tStr,self.settings['Laps'])
         else: s = 'Fly 1 lap.'+tStr
         return s
 
