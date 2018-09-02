@@ -189,9 +189,9 @@ class AroundTheWorld(bs.TeamGameActivity):
 
         # throw a timer up on-screen
         self._timeText = bs.NodeActor(bs.newNode('text',
-                                                 attrs={'vAttach':'top','hAttach':'center','hAlign':'right',
+                                                 attrs={'vAttach':'top','hAttach':'right','hAlign':'right',
                                                         'color':(1,1,1,.5),'flatness':0.5,'shadow':0.5,
-                                                        'position':(600,-500),'scale':1.4,'text':'Touch\nthe\nright,\ntop,\nleft,\nand\nbottom\nplatforms\nin\norder.'}))
+                                                        'position':(0,-75),'scale':1.4,'text':'Touch\nthe\nright,\ntop,\nleft,\nand\nbottom\nplatforms\nin\norder.'}))
         self._timer = bs.OnScreenTimer()
         
 
