@@ -126,7 +126,7 @@ class SimonSays(bs.TeamGameActivity):
         elif num < 15: line = "Run to the " + self.options[num] + "!"
         else: line = "Run outside of the circles!"
         if self.simon: line = "Simon says " + line[0].lower() + line[1:]
-        bs.screenMessage(line)
+        self.text = bs.PopupText(line, position=(0, 5, -4), color=(1, 1, 1), randomOffset=0.5, offset=(0, 0, 0), scale=2.0).autoRetain()
         self.time -= 100
         bs.gameTimer(self.time, self.checkRound)
 
